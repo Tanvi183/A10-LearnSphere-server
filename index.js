@@ -28,10 +28,11 @@ async function run() {
     // Connect the client to the server
     await client.connect();
 
-    // Create database & product & bids colleciton
+    // Create database & users, categories, courses colleciton
     const db = client.db("learnSphere_db");
     const usersCollection = db.collection("users");
     const categoriesCollection = db.collection("categories");
+    const coursesCollection = db.collection("courses");
 
     // USERS Related apis
     // Create new user
@@ -59,7 +60,7 @@ async function run() {
       }
     });
 
-    // Categories Related apis
+    //Start Categories Related apis
     // Create new category
     app.post("/category", async (req, res) => {
       try {
@@ -139,6 +140,101 @@ async function run() {
         res.status(500).send({ message: "Internal Server Error" });
       }
     });
+    //End Categories Related apis
+
+    //Start Courses Related apis
+    // Create new courses
+    app.post("/courses", async (req, res) => {
+      try {
+        const newCourse = req.body;
+        newCourse.createdAt = new Date();
+
+        const query = { title: newCourse.name };
+        const existingCourse = await coursesCollection.findOne(query);
+
+        if (existingCourse) {
+          return res.status(200).send({ message: "Course already exists" });
+        }
+
+        const result = await coursesCollection.insertOne(newCourse);
+        res.status(201).send({
+          message: "Course added successfully",
+          courseId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Error adding course:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // Get all courses
+    app.get("/courses", async (req, res) => {
+      try {
+        const { email, category } = req.query;
+        const filter = {};
+        if (email) {
+          filter.createdBy = email;
+        }
+        if (category) {
+          filter.category = category;
+        }
+
+        const cursor = coursesCollection.find(filter);
+        const result = await cursor.toArray();
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // Get course by ID
+    app.get("/courses/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const result = await coursesCollection.findOne(filter);
+
+        if (!result) {
+          return res.status(404).send({ message: "Course not found" });
+        }
+
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // Update existing course
+    app.patch("/courses/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
+        const filter = { _id: new ObjectId(id) };
+        const update = { $set: updatedData };
+
+        const result = await coursesCollection.updateOne(filter, update);
+        res
+          .status(200)
+          .send({ message: "Course updated successfully", result });
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // Delete course
+    app.delete("/courses/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const qurey = { _id: new ObjectId(id) };
+        const result = await coursesCollection.deleteOne(qurey);
+        res
+          .status(200)
+          .send({ message: "Course deleted successfully", result });
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+    //End Courses Related apis
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
