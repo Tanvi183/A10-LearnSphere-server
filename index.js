@@ -33,6 +33,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const categoriesCollection = db.collection("categories");
     const coursesCollection = db.collection("courses");
+    const enrollmentsCollection = db.collection("enrollments");
 
     // USERS Related apis
     // Create new user
@@ -235,6 +236,158 @@ async function run() {
       }
     });
     //End Courses Related apis
+
+    //Start Enrollment Related apis
+    // Add a Enrollment
+    app.post("/enrollment", async (req, res) => {
+      try {
+        const enrollment = req.body;
+        const { userEmail, courseId } = enrollment;
+
+        // Prevent duplicate enrollment
+        const existing = await enrollmentsCollection.findOne({
+          userEmail,
+          courseId,
+        });
+        if (existing) {
+          return res
+            .status(200)
+            .json({ message: "Already enrolled in this course." });
+        }
+
+        enrollment.enrolledAt = new Date();
+        enrollment.status = "enrolled";
+
+        const result = await enrollmentsCollection.insertOne(enrollment);
+        res
+          .status(201)
+          .json({ message: "Enrollment successful", id: result.insertedId });
+      } catch (error) {
+        console.error("Error enrolling:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    // Get all enrollments (Admin view)
+    app.get("/enrollment", async (req, res) => {
+      try {
+        const enrollments = await enrollmentsCollection.find().toArray();
+        res.status(200).json(enrollments);
+      } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    // Get all enrollments for a specific user
+    app.get("/enrollment/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const result = await enrollmentsCollection
+          .find({ userEmail: email })
+          .toArray();
+        res.status(200).json(result);
+      } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    // Get single enrollment (optional)
+    app.get("/enrollment/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await enrollmentsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!result)
+          return res.status(404).json({ message: "Enrollment not found" });
+        res.status(200).json(result);
+      } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    // Update enrollment status (e.g., completed)
+    app.put("/enrollment/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatedData = req.body;
+
+        const result = await enrollmentsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedData }
+        );
+
+        res
+          .status(200)
+          .json({ message: "Enrollment updated successfully", result });
+      } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    // Delete enrollment (optional — admin or user can unenroll)
+    app.delete("/enrollment/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await enrollmentsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res
+          .status(200)
+          .json({ message: "Enrollment deleted successfully", result });
+      } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+    //End Enrollment Related apis
+
+    // Start Review Realated apis
+    // Add a review
+    app.post("/reviews", async (req, res) => {
+      try {
+        const review = req.body;
+
+        // Prevent duplicate reviews (same user, same course)
+        const existing = await reviewsCollection.findOne({
+          courseId: review.courseId,
+          userEmail: review.userEmail,
+        });
+
+        if (existing) {
+          return res.send({ message: "You already reviewed this course." });
+        }
+
+        review.createdAt = new Date();
+        const result = await reviewsCollection.insertOne(review);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Failed to add review." });
+      }
+    });
+
+    // Get all reviews for a course
+    app.get("/reviews/course/:courseId", async (req, res) => {
+      const { courseId } = req.params;
+      const result = await reviewsCollection
+        .find({ courseId })
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.send(result);
+    });
+
+    // Get average rating for a course
+    app.get("/reviews/rating/:courseId", async (req, res) => {
+      const { courseId } = req.params;
+      const reviews = await reviewsCollection.find({ courseId }).toArray();
+      if (reviews.length === 0) {
+        return res.send({ averageRating: 0, totalReviews: 0 });
+      }
+      const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+      const avg = (total / reviews.length).toFixed(1);
+      res.send({ averageRating: avg, totalReviews: reviews.length });
+    });
+    // End Review Realated apis
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
