@@ -144,6 +144,13 @@ async function run() {
     //End Categories Related apis
 
     //Start Courses Related apis
+    // Latest Courses Api
+    app.get("/latest-courses", async (req, res) => {
+      const cursor = coursesCollection.find().sort({ created_at: -1 }).limit(6);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     // Create new courses
     app.post("/courses", async (req, res) => {
       try {
