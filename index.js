@@ -182,7 +182,7 @@ async function run() {
     });
 
     // Create new courses
-    app.post("/courses", async (req, res) => {
+    app.post("/courses", verifyFireBaseToken, async (req, res) => {
       try {
         const newCourse = req.body;
         newCourse.createdAt = new Date();
@@ -236,7 +236,7 @@ async function run() {
     });
 
     // Get course by ID
-    app.get("/courses/:id", async (req, res) => {
+    app.get("/courses/:id", verifyFireBaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const filter = { _id: new ObjectId(id) };
@@ -253,7 +253,7 @@ async function run() {
     });
 
     // Update existing course
-    app.patch("/courses/:id", async (req, res) => {
+    app.patch("/courses/:id", verifyFireBaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const updatedData = req.body;
@@ -270,7 +270,7 @@ async function run() {
     });
 
     // Delete course
-    app.delete("/courses/:id", async (req, res) => {
+    app.delete("/courses/:id", verifyFireBaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const qurey = { _id: new ObjectId(id) };
@@ -286,7 +286,7 @@ async function run() {
 
     //Start Enrollment Related apis
     // Add a Enrollment
-    app.post("/enrollment", async (req, res) => {
+    app.post("/enrollment", verifyFireBaseToken, async (req, res) => {
       try {
         const enrollment = req.body;
         const { userEmail, courseId } = enrollment;
@@ -299,25 +299,25 @@ async function run() {
         if (existing) {
           return res
             .status(200)
-            .json({ message: "Already enrolled in this course." });
+            .send({ message: "Already enrolled in this course." });
         }
 
         enrollment.enrolledAt = new Date();
         enrollment.status = "enrolled";
 
         const result = await enrollmentsCollection.insertOne(enrollment);
-        res.status(201).json({
+        res.status(201).send({
           message: "Enrollment successful",
           insertedId: result.insertedId,
         });
       } catch (error) {
         console.error("Error enrolling:", error);
-        res.status(500).json({ message: "Internal Server Error" });
+        res.status(500).send({ message: "Internal Server Error" });
       }
     });
 
     // Get all enrollments & Email wise
-    app.get("/enrollment", async (req, res) => {
+    app.get("/enrollment", verifyFireBaseToken, async (req, res) => {
       try {
         const email = req.query.email;
         console.log("Received email:", email);
@@ -329,7 +329,7 @@ async function run() {
         const result = await cursor.toArray();
         res.status(200).send(result);
       } catch (error) {
-        res.status(500).json({ message: "Internal Server Error" });
+        res.status(500).send({ message: "Internal Server Error" });
       }
     });
 
@@ -341,10 +341,10 @@ async function run() {
           _id: new ObjectId(id),
         });
         if (!result)
-          return res.status(404).json({ message: "Enrollment not found" });
-        res.status(200).json(result);
+          return res.status(404).send({ message: "Enrollment not found" });
+        res.status(200).send(result);
       } catch (error) {
-        res.status(500).json({ message: "Internal Server Error" });
+        res.status(500).send({ message: "Internal Server Error" });
       }
     });
     //End Enrollment Related apis
@@ -382,18 +382,6 @@ async function run() {
         .sort({ createdAt: -1 })
         .toArray();
       res.send(result);
-    });
-
-    // Get average rating for a course
-    app.get("/reviews/rating/:courseId", async (req, res) => {
-      const { courseId } = req.params;
-      const reviews = await reviewsCollection.find({ courseId }).toArray();
-      if (reviews.length === 0) {
-        return res.send({ averageRating: 0, totalReviews: 0 });
-      }
-      const total = reviews.reduce((acc, r) => acc + r.rating, 0);
-      const avg = (total / reviews.length).toFixed(1);
-      res.send({ averageRating: avg, totalReviews: reviews.length });
     });
     // End Review Realated apis
 
