@@ -3,12 +3,42 @@ const app = express();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
 require("dotenv").config();
+const admin = require("firebase-admin");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@simple-crud-server.7fhuvu7.mongodb.net/?appName=simple-crud-server`;
+
+// Firebase Admin
+var serviceAccount = require("./learnsphere-firebase-adminsdk.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // middleware
 app.use(cors());
 app.use(express.json());
+
+// use firebase token to verify user's
+const verifyFireBaseToken = async (req, res, next) => {
+  // console.log('hader', req.headers.authorization);
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+
+  // verify the token
+  try {
+    const userInfo = await admin.auth().verifyIdToken(token);
+    req.token_email = userInfo.email;
+    // console.log("after token validation", userInfo);
+    next();
+  } catch {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+};
 
 // Mongobd client
 const client = new MongoClient(uri, {
@@ -177,6 +207,16 @@ async function run() {
 
     // Get all courses
     app.get("/courses", async (req, res) => {
+      try {
+        const result = await coursesCollection.find().toArray();
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // Course According to user's
+    app.get("/user-courses", verifyFireBaseToken, async (req, res) => {
       try {
         const { email, category } = req.query;
         const filter = {};
