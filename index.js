@@ -266,39 +266,34 @@ async function run() {
         enrollment.status = "enrolled";
 
         const result = await enrollmentsCollection.insertOne(enrollment);
-        res
-          .status(201)
-          .json({ message: "Enrollment successful", id: result.insertedId });
+        res.status(201).json({
+          message: "Enrollment successful",
+          insertedId: result.insertedId,
+        });
       } catch (error) {
         console.error("Error enrolling:", error);
         res.status(500).json({ message: "Internal Server Error" });
       }
     });
 
-    // Get all enrollments (Admin view)
+    // Get all enrollments & Email wise
     app.get("/enrollment", async (req, res) => {
       try {
-        const enrollments = await enrollmentsCollection.find().toArray();
-        res.status(200).json(enrollments);
+        const email = req.query.email;
+        console.log("Received email:", email);
+        const filter = {};
+        if (email) {
+          filter.userEmail = email;
+        }
+        const cursor = enrollmentsCollection.find(filter);
+        const result = await cursor.toArray();
+        res.status(200).send(result);
       } catch (error) {
         res.status(500).json({ message: "Internal Server Error" });
       }
     });
 
-    // Get all enrollments for a specific user
-    app.get("/enrollment/:email", async (req, res) => {
-      try {
-        const email = req.params.email;
-        const result = await enrollmentsCollection
-          .find({ userEmail: email })
-          .toArray();
-        res.status(200).json(result);
-      } catch (error) {
-        res.status(500).json({ message: "Internal Server Error" });
-      }
-    });
-
-    // Get single enrollment (optional)
+    // Get single enrollment
     app.get("/enrollment/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -308,40 +303,6 @@ async function run() {
         if (!result)
           return res.status(404).json({ message: "Enrollment not found" });
         res.status(200).json(result);
-      } catch (error) {
-        res.status(500).json({ message: "Internal Server Error" });
-      }
-    });
-
-    // Update enrollment status (e.g., completed)
-    app.put("/enrollment/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const updatedData = req.body;
-
-        const result = await enrollmentsCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: updatedData }
-        );
-
-        res
-          .status(200)
-          .json({ message: "Enrollment updated successfully", result });
-      } catch (error) {
-        res.status(500).json({ message: "Internal Server Error" });
-      }
-    });
-
-    // Delete enrollment (optional — admin or user can unenroll)
-    app.delete("/enrollment/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const result = await enrollmentsCollection.deleteOne({
-          _id: new ObjectId(id),
-        });
-        res
-          .status(200)
-          .json({ message: "Enrollment deleted successfully", result });
       } catch (error) {
         res.status(500).json({ message: "Internal Server Error" });
       }
