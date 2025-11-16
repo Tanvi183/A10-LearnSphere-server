@@ -6,7 +6,7 @@ This is the **backend API** for the **Learnsphere** web application. Built with 
 
 ## 🌐 Live API
 
-- API Base URL: `https://your-backend-domain.com/api`  
+- API Base URL: `https://learnsphere-online-learning-platfor.vercel.app/`  
   _(replace with your deployed backend URL)_
 
 ---
