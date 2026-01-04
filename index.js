@@ -96,6 +96,51 @@ async function run() {
       }
     });
 
+    // all user get
+    app.get("/users", verifyFireBaseToken, async (req, res) => {
+      try {
+        const users = await usersCollection.find({}).toArray();
+        res.send(users);
+      } catch (error) {
+        res.status(500).send({ message: "Server error" });
+      }
+    });
+
+    // email wise data
+    app.get("/users", async (req, res) => {
+      const { email } = req.query;
+      const requesterEmail = req.token_email;
+
+      try {
+        if (email) {
+          if (email !== requesterEmail) {
+            return res.status(403).json({
+              message: "Forbidden: Cannot access other users",
+            });
+          }
+
+          const user = await usersCollection.findOne({ email });
+
+          if (!user) {
+            return res.status(404).send({ message: "User not found" });
+          }
+
+          return res.send(user);
+        }
+
+        // admin: get all users
+        const users = await usersCollection
+          .find({})
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(users);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
+
     //Start Categories Related apis
     // Create new category
     app.post("/category", async (req, res) => {
@@ -181,7 +226,7 @@ async function run() {
     //Start Courses Related apis
     // Latest Courses Api
     app.get("/latest-courses", async (req, res) => {
-      const cursor = coursesCollection.find().sort({ created_at: -1 }).limit(6);
+      const cursor = coursesCollection.find().sort({ created_at: -1 }).limit(8);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -220,6 +265,45 @@ async function run() {
       }
     });
 
+    // for pagination
+    app.get("/courses-paginated", async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 9;
+        const sort = req.query.sort || "asc";
+        const search = req.query.search || "";
+        const category = req.query.category || "";
+
+        const skip = (page - 1) * limit;
+
+        // QUERY
+        const query = {
+          ...(search && {
+            title: { $regex: search, $options: "i" },
+          }),
+          ...(category && { category }),
+        };
+
+        const totalCourses = await coursesCollection.countDocuments(query);
+
+        const courses = await coursesCollection
+          .find(query)
+          .skip(skip)
+          .limit(limit)
+          .sort({ price: sort === "asc" ? 1 : -1 })
+          .toArray();
+
+        res.send({
+          courses,
+          totalCourses,
+          totalPages: Math.ceil(totalCourses / limit),
+          currentPage: page,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch courses" });
+      }
+    });
+
     // Course According to user's
     app.get("/user-courses", verifyFireBaseToken, async (req, res) => {
       try {
@@ -241,7 +325,7 @@ async function run() {
     });
 
     // Get course by ID
-    app.get("/courses/:id", verifyFireBaseToken, async (req, res) => {
+    app.get("/courses/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const filter = { _id: new ObjectId(id) };
@@ -322,7 +406,7 @@ async function run() {
     });
 
     // Get all enrollments & Email wise
-    app.get("/enrollment", verifyFireBaseToken, async (req, res) => {
+    app.get("/enrollment", async (req, res) => {
       try {
         const email = req.query.email;
         console.log("Received email:", email);
